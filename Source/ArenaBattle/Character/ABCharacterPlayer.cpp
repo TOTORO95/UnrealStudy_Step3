@@ -1,16 +1,17 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "Character/ABCharacterPlayer.h"
+
+#include "ABCharacterControlData.h"
+#include "ArenaBattle.h"
 #include "Camera/CameraComponent.h"
-#include "GameFramework/SpringArmComponent.h"
-#include "InputMappingContext.h"
+#include "CharacterStat/ABCharacterStatComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
-#include "ABCharacterControlData.h"
-#include "UI/ABHUDWidget.h"
-#include "CharacterStat/ABCharacterStatComponent.h"
+#include "GameFramework/SpringArmComponent.h"
+#include "InputMappingContext.h"
 #include "Interface/ABGameInterface.h"
+#include "UI/ABHUDWidget.h"
 
 AABCharacterPlayer::AABCharacterPlayer()
 {
@@ -25,37 +26,43 @@ AABCharacterPlayer::AABCharacterPlayer()
 	FollowCamera->bUsePawnControlRotation = false;
 
 	// Input
-	static ConstructorHelpers::FObjectFinder<UInputAction> InputActionJumpRef(TEXT("/Script/EnhancedInput.InputAction'/Game/ArenaBattle/Input/Actions/IA_Jump.IA_Jump'"));
+	static ConstructorHelpers::FObjectFinder<UInputAction> InputActionJumpRef(
+		TEXT("/Script/EnhancedInput.InputAction'/Game/ArenaBattle/Input/Actions/IA_Jump.IA_Jump'"));
 	if (nullptr != InputActionJumpRef.Object)
 	{
 		JumpAction = InputActionJumpRef.Object;
 	}
 
-	static ConstructorHelpers::FObjectFinder<UInputAction> InputChangeActionControlRef(TEXT("/Script/EnhancedInput.InputAction'/Game/ArenaBattle/Input/Actions/IA_ChangeControl.IA_ChangeControl'"));
+	static ConstructorHelpers::FObjectFinder<UInputAction> InputChangeActionControlRef(
+		TEXT("/Script/EnhancedInput.InputAction'/Game/ArenaBattle/Input/Actions/IA_ChangeControl.IA_ChangeControl'"));
 	if (nullptr != InputChangeActionControlRef.Object)
 	{
 		ChangeControlAction = InputChangeActionControlRef.Object;
 	}
 
-	static ConstructorHelpers::FObjectFinder<UInputAction> InputActionShoulderMoveRef(TEXT("/Script/EnhancedInput.InputAction'/Game/ArenaBattle/Input/Actions/IA_ShoulderMove.IA_ShoulderMove'"));
+	static ConstructorHelpers::FObjectFinder<UInputAction> InputActionShoulderMoveRef(
+		TEXT("/Script/EnhancedInput.InputAction'/Game/ArenaBattle/Input/Actions/IA_ShoulderMove.IA_ShoulderMove'"));
 	if (nullptr != InputActionShoulderMoveRef.Object)
 	{
 		ShoulderMoveAction = InputActionShoulderMoveRef.Object;
 	}
 
-	static ConstructorHelpers::FObjectFinder<UInputAction> InputActionShoulderLookRef(TEXT("/Script/EnhancedInput.InputAction'/Game/ArenaBattle/Input/Actions/IA_ShoulderLook.IA_ShoulderLook'"));
+	static ConstructorHelpers::FObjectFinder<UInputAction> InputActionShoulderLookRef(
+		TEXT("/Script/EnhancedInput.InputAction'/Game/ArenaBattle/Input/Actions/IA_ShoulderLook.IA_ShoulderLook'"));
 	if (nullptr != InputActionShoulderLookRef.Object)
 	{
 		ShoulderLookAction = InputActionShoulderLookRef.Object;
 	}
 
-	static ConstructorHelpers::FObjectFinder<UInputAction> InputActionQuaterMoveRef(TEXT("/Script/EnhancedInput.InputAction'/Game/ArenaBattle/Input/Actions/IA_QuaterMove.IA_QuaterMove'"));
+	static ConstructorHelpers::FObjectFinder<UInputAction> InputActionQuaterMoveRef(
+		TEXT("/Script/EnhancedInput.InputAction'/Game/ArenaBattle/Input/Actions/IA_QuaterMove.IA_QuaterMove'"));
 	if (nullptr != InputActionQuaterMoveRef.Object)
 	{
 		QuaterMoveAction = InputActionQuaterMoveRef.Object;
 	}
 
-	static ConstructorHelpers::FObjectFinder<UInputAction> InputActionAttackRef(TEXT("/Script/EnhancedInput.InputAction'/Game/ArenaBattle/Input/Actions/IA_Attack.IA_Attack'"));
+	static ConstructorHelpers::FObjectFinder<UInputAction> InputActionAttackRef(
+		TEXT("/Script/EnhancedInput.InputAction'/Game/ArenaBattle/Input/Actions/IA_Attack.IA_Attack'"));
 	if (nullptr != InputActionAttackRef.Object)
 	{
 		AttackAction = InputActionAttackRef.Object;
@@ -88,6 +95,31 @@ void AABCharacterPlayer::SetDead()
 	}
 }
 
+void AABCharacterPlayer::PossessedBy(AController* NewController)
+{
+	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
+	PrintOwnerName(LOG_CALLINFO);
+	Super::PossessedBy(NewController);
+	PrintOwnerName(LOG_CALLINFO);
+	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("End"));
+}
+
+void AABCharacterPlayer::PostNetInit()
+{
+	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
+	PrintOwnerName(LOG_CALLINFO);
+	Super::PostNetInit();
+	PrintOwnerName(LOG_CALLINFO);
+	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("End"));
+}
+
+void AABCharacterPlayer::OnRep_Owner()
+{
+	PrintOwnerName(LOG_CALLINFO);
+	Super::OnRep_Owner();
+	PrintOwnerName(LOG_CALLINFO);
+}
+
 void AABCharacterPlayer::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
@@ -96,7 +128,8 @@ void AABCharacterPlayer::SetupPlayerInputComponent(class UInputComponent* Player
 
 	EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &ACharacter::Jump);
 	EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
-	EnhancedInputComponent->BindAction(ChangeControlAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::ChangeCharacterControl);
+	EnhancedInputComponent->BindAction(
+		ChangeControlAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::ChangeCharacterControl);
 	EnhancedInputComponent->BindAction(ShoulderMoveAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::ShoulderMove);
 	EnhancedInputComponent->BindAction(ShoulderLookAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::ShoulderLook);
 	EnhancedInputComponent->BindAction(QuaterMoveAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::QuaterMove);
@@ -128,7 +161,8 @@ void AABCharacterPlayer::SetCharacterControl(ECharacterControlType NewCharacterC
 	SetCharacterControlData(NewCharacterControl);
 
 	APlayerController* PlayerController = CastChecked<APlayerController>(GetController());
-	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+	if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
+			ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
 	{
 		Subsystem->ClearAllMappings();
 		UInputMappingContext* NewMappingContext = NewCharacterControl->InputMappingContext;
@@ -201,6 +235,32 @@ void AABCharacterPlayer::QuaterMove(const FInputActionValue& Value)
 void AABCharacterPlayer::Attack()
 {
 	ProcessComboCommand();
+}
+
+void AABCharacterPlayer::PrintOwnerName()
+{
+	AActor* OwnerActor = GetOwner();
+	if (OwnerActor)
+	{
+		AB_LOG(LogABNetwork, Log, TEXT("Owner : %s"), *OwnerActor->GetName());
+	}
+	else
+	{
+		AB_LOG(LogABNetwork, Log, TEXT("Owner : %s"), TEXT("Have Not Onwer"));
+	}
+}
+
+void AABCharacterPlayer::PrintOwnerName(const FString& InFunctionName)
+{
+	AActor* OwnerActor = GetOwner();
+	if (OwnerActor)
+	{
+		AB_LOG2(LogABNetwork, Log, TEXT("%s Owner : %s"), *InFunctionName, *OwnerActor->GetName());
+	}
+	else
+	{
+		AB_LOG2(LogABNetwork, Log, TEXT("%s Owner : %s"), *InFunctionName, TEXT("Have Not Onwer"));
+	}
 }
 
 void AABCharacterPlayer::SetupHUDWidget(UABHUDWidget* InHUDWidget)

@@ -22,6 +22,9 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetDead() override;
+	virtual void PossessedBy(AController* NewController) override; 
+	virtual void PostNetInit() override;
+	virtual void OnRep_Owner() override; //Client는 Possess를 하지않고 Server에서 동기화를 한다. 
 
 public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
@@ -71,5 +74,7 @@ protected:
 
 // UI Section
 protected:
+	void PrintOwnerName();
+	void PrintOwnerName(const FString& InFunctionName);
 	virtual void SetupHUDWidget(class UABHUDWidget* InHUDWidget) override;
 };

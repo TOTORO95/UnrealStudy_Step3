@@ -9,5 +9,7 @@
 //__FUNCTION__ 의 경우 어느타이밍에 호출되는지 확인할수있는 예약어이다.
 #define LOG_CALLINFO ANSI_TO_TCHAR(__FUNCTION__)
 #define AB_LOG(LogCat, Verbosity, Format, ...) UE_LOG(LogCat, Verbosity, TEXT("[%s]%s %s"), LOG_NETMODEINFO, LOG_CALLINFO, *FString::Printf(Format, ##__VA_ARGS__))
+#define AB_LOG2(LogCat, Verbosity, Format, ...) \
+	UE_LOG(LogCat, Verbosity, TEXT("[%s]%s"), LOG_NETMODEINFO, *FString::Printf(Format, ##__VA_ARGS__))
 
 DECLARE_LOG_CATEGORY_EXTERN(LogABNetwork, Log, All);
