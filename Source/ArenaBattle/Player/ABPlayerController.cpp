@@ -5,7 +5,7 @@
 #include "UI/ABHUDWidget.h"
 #include "Kismet/GameplayStatics.h"
 #include "ABSaveGame.h"
-
+#include "ArenaBattle.h"
 DEFINE_LOG_CATEGORY(LogABPlayerController);
 
 AABPlayerController::AABPlayerController()
@@ -19,7 +19,9 @@ AABPlayerController::AABPlayerController()
 
 void AABPlayerController::BeginPlay()
 {
+	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
 	Super::BeginPlay();
+	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("End"));
 
 	FInputModeGameOnly GameOnlyInputMode;
 	SetInputMode(GameOnlyInputMode);
