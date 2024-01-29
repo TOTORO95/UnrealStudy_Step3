@@ -106,8 +106,7 @@ void AABCharacterPlayer::PossessedBy(AController* NewController)
 
 void AABCharacterPlayer::PostNetInit()
 {
-	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
-	PrintOwnerName(LOG_CALLINFO);
+	AB_LOG(LogABNetwork, Log, TEXT("%s %s"), TEXT("Begin"), *GetName());
 	Super::PostNetInit();
 	PrintOwnerName(LOG_CALLINFO);
 	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("End"));
@@ -115,7 +114,6 @@ void AABCharacterPlayer::PostNetInit()
 
 void AABCharacterPlayer::OnRep_Owner()
 {
-	PrintOwnerName(LOG_CALLINFO);
 	Super::OnRep_Owner();
 	PrintOwnerName(LOG_CALLINFO);
 }

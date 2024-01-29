@@ -4,12 +4,17 @@
 
 #include "CoreMinimal.h"
 
+#define LOG_LOCALROLEINFO *(UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetLocalRole()))
+#define LOG_REMOTEROLEINFO *(UEnum::GetValueAsString(TEXT("Engine.ENetRole"), GetRemoteRole()))
+
 #define LOG_NETMODEINFO ((GetNetMode()) == ENetMode::NM_Client) ? * FString::Printf(TEXT("CLIENT%d"), GPlayInEditorID) : ((GetNetMode() == ENetMode::NM_Standalone) ? TEXT("STANDALONE") : TEXT("SERVER"))
 
 //__FUNCTION__ 의 경우 어느타이밍에 호출되는지 확인할수있는 예약어이다.
 #define LOG_CALLINFO ANSI_TO_TCHAR(__FUNCTION__)
-#define AB_LOG(LogCat, Verbosity, Format, ...) UE_LOG(LogCat, Verbosity, TEXT("[%s]%s %s"), LOG_NETMODEINFO, LOG_CALLINFO, *FString::Printf(Format, ##__VA_ARGS__))
+#define AB_LOG(LogCat, Verbosity, Format, ...)                                                                                \
+	UE_LOG(LogCat, Verbosity, TEXT("[%s][%s/%s] %s %s"), LOG_NETMODEINFO, LOG_LOCALROLEINFO, LOG_REMOTEROLEINFO, LOG_CALLINFO, \
+		*FString::Printf(Format, ##__VA_ARGS__))
 #define AB_LOG2(LogCat, Verbosity, Format, ...) \
-	UE_LOG(LogCat, Verbosity, TEXT("[%s]%s"), LOG_NETMODEINFO, *FString::Printf(Format, ##__VA_ARGS__))
+	UE_LOG(LogCat, Verbosity, TEXT("[%s][%s/%s]%s"), LOG_NETMODEINFO, LOG_LOCALROLEINFO, LOG_REMOTEROLEINFO, *FString::Printf(Format, ##__VA_ARGS__))
 
 DECLARE_LOG_CATEGORY_EXTERN(LogABNetwork, Log, All);
