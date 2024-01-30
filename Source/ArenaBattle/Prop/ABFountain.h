@@ -29,4 +29,15 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = Mesh)
 	TObjectPtr<class UStaticMeshComponent> Water;
 
+public:
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	virtual void OnActorChannelOpen(class FInBunch& InBunch, class UNetConnection* Connection) override;
+
+	UPROPERTY(ReplicatedUsing = OnRep_ServerRotationYaw)	// 해당 키워드를 통해 네트워크에 복제되게끔 한다.
+	float ServerRotationYaw;
+
+	UFUNCTION()
+	void OnRep_ServerRotationYaw();
+
+	float RotationRate = 30.0f;
 };

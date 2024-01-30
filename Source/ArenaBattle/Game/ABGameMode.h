@@ -19,12 +19,12 @@ class ARENABATTLE_API AABGameMode : public AGameModeBase, public IABGameInterfac
 public:
 	AABGameMode();
 
-	virtual void StartPlay() override;
-	virtual void PreLogin(
-		const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId, FString& ErrorMessage) override;
-	virtual APlayerController* Login(UPlayer* NewPlayer, ENetRole InRemoteRole, const FString& Portal, const FString& Options,
-		const FUniqueNetIdRepl& UniqueId, FString& ErrorMessage) override;
-	virtual void PostLogin(APlayerController* NewPlayer);
+	//virtual void StartPlay() override;
+	//virtual void PreLogin(
+	//	const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId, FString& ErrorMessage) override;
+	//virtual APlayerController* Login(UPlayer* NewPlayer, ENetRole InRemoteRole, const FString& Portal, const FString& Options,
+	//	const FUniqueNetIdRepl& UniqueId, FString& ErrorMessage) override;
+	//virtual void PostLogin(APlayerController* NewPlayer);
 
 	virtual void OnPlayerDead() override;
 };
