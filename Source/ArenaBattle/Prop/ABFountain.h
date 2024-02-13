@@ -4,14 +4,15 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+
 #include "ABFountain.generated.h"
 
 UCLASS()
 class ARENABATTLE_API AABFountain : public AActor
 {
 	GENERATED_BODY()
-	
-public:	
+
+public:
 	// Sets default values for this actor's properties
 	AABFountain();
 
@@ -19,7 +20,7 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-public:	
+public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
@@ -32,12 +33,27 @@ public:
 public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void OnActorChannelOpen(class FInBunch& InBunch, class UNetConnection* Connection) override;
+	virtual bool IsNetRelevantFor(const AActor* RealViewer, const AActor* ViewTarget, const FVector& SrcLocation) const;
+	virtual void PreReplication(IRepChangedPropertyTracker& ChangedPropertyTracker) override;
 
 	UPROPERTY(ReplicatedUsing = OnRep_ServerRotationYaw)	// 해당 키워드를 통해 네트워크에 복제되게끔 한다.
 	float ServerRotationYaw;
 
-	UFUNCTION()
+
+	UPROPERTY(ReplicatedUsing = OnRep_ServerLightColor)
+	FLinearColor ServerLightColor;
+
+	//UPROPERTY(Replicated)
+	//TArray<float> BigData;
+	
+	UFUNCTION() 
 	void OnRep_ServerRotationYaw();
 
+	UFUNCTION()
+	void OnRep_ServerLightColor();
+	
 	float RotationRate = 30.0f;
+	float ClientTimeSinceUpdate = 0.0f;
+	float ClientTimeBetweenLastUpdate = 0.0f;
+	//float BigDataElement = 0.0f;
 };
