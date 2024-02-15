@@ -32,28 +32,36 @@ public:
 
 public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
-	virtual void OnActorChannelOpen(class FInBunch& InBunch, class UNetConnection* Connection) override;
-	virtual bool IsNetRelevantFor(const AActor* RealViewer, const AActor* ViewTarget, const FVector& SrcLocation) const;
-	virtual void PreReplication(IRepChangedPropertyTracker& ChangedPropertyTracker) override;
+	//virtual void OnActorChannelOpen(class FInBunch& InBunch, class UNetConnection* Connection) override;
+	//virtual bool IsNetRelevantFor(const AActor* RealViewer, const AActor* ViewTarget, const FVector& SrcLocation) const;
+	//virtual void PreReplication(IRepChangedPropertyTracker& ChangedPropertyTracker) override;
 
 	UPROPERTY(ReplicatedUsing = OnRep_ServerRotationYaw)	// 해당 키워드를 통해 네트워크에 복제되게끔 한다.
 	float ServerRotationYaw;
 
-
 	UPROPERTY(ReplicatedUsing = OnRep_ServerLightColor)
 	FLinearColor ServerLightColor;
 
-	//UPROPERTY(Replicated)
-	//TArray<float> BigData;
-	
-	UFUNCTION() 
+	// UPROPERTY(Replicated)
+	// TArray<float> BigData;
+
+	UFUNCTION()
 	void OnRep_ServerRotationYaw();
 
 	UFUNCTION()
 	void OnRep_ServerLightColor();
+
+	 UFUNCTION(NetMulticast, Unreliable)
+	void MulticastRPC_ChangeLightColor(const FLinearColor& NewLinearColor);
 	
+	UFUNCTION(Server, Unreliable)
+	void ServerRPC_ChangeLightColor();
+
+	UFUNCTION(Client, Unreliable)
+	void ClientRPC_ChangeLightColor(const FLinearColor& NewLinearColor);
+
 	float RotationRate = 30.0f;
 	float ClientTimeSinceUpdate = 0.0f;
 	float ClientTimeBetweenLastUpdate = 0.0f;
-	//float BigDataElement = 0.0f;
+	// float BigDataElement = 0.0f;
 };

@@ -5,7 +5,9 @@
 #include "ArenaBattle.h"
 #include "Components/PointLightComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "EngineUtils.h"
 #include "Net/UnrealNetwork.h"
+
 // Sets default values
 AABFountain::AABFountain()
 {
@@ -37,7 +39,7 @@ AABFountain::AABFountain()
 	bReplicates = true;
 	NetUpdateFrequency = 1.0f;
 	NetCullDistanceSquared = 4000000.0f;
-	//NetDormancy = DORM_Initial;
+	// NetDormancy = DORM_Initial;
 }
 
 // Called when the game starts or when spawned
@@ -46,29 +48,61 @@ void AABFountain::BeginPlay()
 	Super::BeginPlay();
 	if (HasAuthority())
 	{
-		FTimerHandle Handle;
-		GetWorld()->GetTimerManager().SetTimer(Handle,
-			FTimerDelegate::CreateLambda(
-				[&]()
-				{
-					// BigData.Init(BigDataElement, 1000);
-					// BigDataElement += 1.0f;
-					// ServerRotationYaw += 1.0f;
-					ServerLightColor = FLinearColor(
-						FMath::RandRange(0.0f, 1.0f), FMath::RandRange(0.0f, 1.0f), FMath::FRandRange(0.0f, 1.0f), 1.0f);
-					OnRep_ServerLightColor();
-				}),
-			1.0f, true, 0.0f);
+		//FTimerHandle Handle;
+		//GetWorld()->GetTimerManager().SetTimer(Handle,
+		//	FTimerDelegate::CreateLambda(
+		//		[&]()
+		//		{
+		//			// BigData.Init(BigDataElement, 1000);
+		//			// BigDataElement += 1.0f;
+		//			// ServerRotationYaw += 1.0f;
+		//			// ServerLightColor = FLinearColor(
+		//			//	FMath::RandRange(0.0f, 1.0f), FMath::RandRange(0.0f, 1.0f), FMath::FRandRange(0.0f, 1.0f), 1.0f);
+		//			// OnRep_ServerLightColor();
+		//			 const FLinearColor NewLightColor = FLinearColor(
+		//				FMath::RandRange(0.0f, 1.0f), FMath::RandRange(0.0f, 1.0f), FMath::FRandRange(0.0f, 1.0f), 1.0f);
+		//			ClientRPC_ChangeLightColor(NewLightColor);
+		//		// ServerRPC_ChangeLightColor();
 
-		FTimerHandle Handle2;
-		GetWorld()->GetTimerManager().SetTimer(Handle2,
-			FTimerDelegate::CreateLambda(
-				[&]()
-				{ 
-					//FlushNetDormancy();
-				}),
-			10.0f, false, -1.0f);
+		//		}),
+		//	1.0f, true, 0.0f);
 
+		//// Server에있는 Actor의 Onwer를 Client보내기 위해 10초의 딜레이를 주어 설정
+		//FTimerHandle Handle2;
+		//GetWorld()->GetTimerManager().SetTimer(Handle2,
+		//	FTimerDelegate::CreateLambda(
+		//		[&]()
+		//		{
+		//			//for (FConstPlayerControllerIterator Iterator = GetWorld()->GetPlayerControllerIterator(); Iterator; ++Iterator)
+		//			//{
+		//			//	APlayerController* PlayerController = Iterator->Get();
+		//			//	if (PlayerController && !PlayerController->IsLocalController())
+		//			//	{
+		//			//		SetOwner(PlayerController);
+		//			//		break;
+		//			//	}
+		//			//}
+
+		//			for (APlayerController* PlayerController : TActorRange<APlayerController>(GetWorld()))
+		//			{
+		//				if (PlayerController && !PlayerController->IsLocalController())
+		//				{
+		//					SetOwner(PlayerController);
+		//					break;
+		//				}
+		//			}
+
+		//		}),
+		//	10.0f, false, -1.0f);
+	}
+	else
+	{
+		//// Client는 Proxy에서 Server를 복제한것이기떄문에 Onwer 설정이 의미가없다
+		//// Network가없는 LocalFunction을 호출하게된 코드이다.
+		//SetOwner(GetWorld()->GetFirstPlayerController());	 // 해당시점은 서버의 Onwer를 복제한게아니게된다.
+		//FTimerHandle Handle;
+		//GetWorld()->GetTimerManager().SetTimer(
+		//	Handle, FTimerDelegate::CreateLambda([&]() { ServerRPC_ChangeLightColor(); }), 1.0f, true, 0.0f);
 	}
 }
 
@@ -106,32 +140,32 @@ void AABFountain::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifet
 
 	DOREPLIFETIME(AABFountain, ServerRotationYaw);
 	// DOREPLIFETIME(AABFountain, BigData);
-	//DOREPLIFETIME_CONDITION(AABFountain, ServerLightColor, COND_InitialOnly);
+	// DOREPLIFETIME_CONDITION(AABFountain, ServerLightColor, COND_InitialOnly);
 	DOREPLIFETIME(AABFountain, ServerLightColor);
 }
 
-void AABFountain::OnActorChannelOpen(FInBunch& InBunch, UNetConnection* Connection)
-{
-	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
-	Super::OnActorChannelOpen(InBunch, Connection);
-	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("End"));
-}
-
-bool AABFountain::IsNetRelevantFor(const AActor* RealViewer, const AActor* ViewTarget, const FVector& SrcLocation) const
-{
-	bool NetRelevantResult = Super::IsNetRelevantFor(RealViewer, ViewTarget, SrcLocation);
-	if (!NetRelevantResult)
-	{
-		AB_LOG(LogABNetwork, Log, TEXT("Not Relevant:[%s] %s"), *RealViewer->GetName(), *SrcLocation.ToCompactString())
-	}
-	return NetRelevantResult;
-}
-
-void AABFountain::PreReplication(IRepChangedPropertyTracker& ChangedPropertyTracker)
-{
-	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
-	Super::PreReplication(ChangedPropertyTracker);
-}
+//void AABFountain::OnActorChannelOpen(FInBunch& InBunch, UNetConnection* Connection)
+//{
+//	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
+//	Super::OnActorChannelOpen(InBunch, Connection);
+//	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("End"));
+//}
+//
+//bool AABFountain::IsNetRelevantFor(const AActor* RealViewer, const AActor* ViewTarget, const FVector& SrcLocation) const
+//{
+//	bool NetRelevantResult = Super::IsNetRelevantFor(RealViewer, ViewTarget, SrcLocation);
+//	if (!NetRelevantResult)
+//	{
+//		AB_LOG(LogABNetwork, Log, TEXT("Not Relevant:[%s] %s"), *RealViewer->GetName(), *SrcLocation.ToCompactString())
+//	}
+//	return NetRelevantResult;
+//}
+//
+//void AABFountain::PreReplication(IRepChangedPropertyTracker& ChangedPropertyTracker)
+//{
+//	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
+//	Super::PreReplication(ChangedPropertyTracker);
+//}
 
 void AABFountain::OnRep_ServerRotationYaw()
 {
@@ -149,11 +183,40 @@ void AABFountain::OnRep_ServerLightColor()
 {
 	if (!HasAuthority())
 	{
-		AB_LOG(LogABNetwork, Log, TEXT("Light Color : %s"), *ServerLightColor.ToString());	
+		AB_LOG(LogABNetwork, Log, TEXT("Light Color : %s"), *ServerLightColor.ToString());
 	}
 	UPointLightComponent* PointLight = Cast<UPointLightComponent>(GetComponentByClass(UPointLightComponent::StaticClass()));
 	if (PointLight)
 	{
 		PointLight->SetLightColor(ServerLightColor);
+	}
+}
+
+void AABFountain::MulticastRPC_ChangeLightColor_Implementation(const FLinearColor& NewLinearColor)
+{
+	AB_LOG(LogABNetwork, Log, TEXT("Light Color : %s"), *NewLinearColor.ToString());
+
+	UPointLightComponent* PointLight = Cast<UPointLightComponent>(GetComponentByClass(UPointLightComponent::StaticClass()));
+	if (PointLight)
+	{
+		PointLight->SetLightColor(NewLinearColor);
+	}
+}
+
+void AABFountain::ServerRPC_ChangeLightColor_Implementation()
+{
+	const FLinearColor NewLightColor =
+		FLinearColor(FMath::RandRange(0.0f, 1.0f), FMath::RandRange(0.0f, 1.0f), FMath::FRandRange(0.0f, 1.0f), 1.0f);
+	MulticastRPC_ChangeLightColor(NewLightColor);
+}
+
+void AABFountain::ClientRPC_ChangeLightColor_Implementation(const FLinearColor& NewLinearColor)
+{
+	AB_LOG(LogABNetwork, Log, TEXT("Light Color : %s"), *NewLinearColor.ToString());
+
+	UPointLightComponent* PointLight = Cast<UPointLightComponent>(GetComponentByClass(UPointLightComponent::StaticClass()));
+	if (PointLight)
+	{
+		PointLight->SetLightColor(NewLinearColor);
 	}
 }
