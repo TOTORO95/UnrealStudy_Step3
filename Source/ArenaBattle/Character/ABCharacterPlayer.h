@@ -73,20 +73,39 @@ protected:
 protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	void Attack();
+	void PlayAttackAnimation();
+
 	virtual void AttackHitCheck() override;
+	void AttackHitConfirm(AActor* HitActor);
+	void DrawDebugAttackRange(const FColor& DrawColor, FVector TraceStart, FVector TraceEnd, FVector Forward);
 
 	UFUNCTION(Server, Reliable, withValidation)
-	void ServerRPCAttack();//16:20
+	void ServerRPCAttack(float AttackStartTime);
 
-	UFUNCTION(NetMulticast, Reliable)
+	UFUNCTION(NetMulticast, UnReliable)
 	void MulticastRPCAttack();
 	
+	UFUNCTION(Client, UnReliable)
+	void ClientRPCPlayAnimaiton(AABCharacterPlayer* CharacterToPlay);
+	
+	UFUNCTION(Server, Reliable, withValidation)
+	void ServerRPCNotifyHit(const FHitResult& HitResult, float HitCheckTime);
+
+	UFUNCTION(Server, Reliable, withValidation)
+	void ServerRPCNotifyMiss(
+		FVector_NetQuantize TraceStart, FVector_NetQuantize TraceEnd, FVector_NetQuantizeNormal TraceDir, float HitCheckTime);
+
 	UPROPERTY(ReplicatedUsing = OnRep_CanAttack)
 	uint8 bCanAttack : 1;
-	float AttackTime = 1.4667f;
 
 	UFUNCTION()
 	void OnRep_CanAttack();
+
+	float AttackTime = 1.4667f;
+	float LastAttackStartTime = 0.0f;
+	float AttackTimeDifference = 0.0f;
+	float AcceptCheckDistance = 300.0f;
+	float AcceptMinCheckTime = 0.15f;
 
 	// UI Section
 protected:

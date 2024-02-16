@@ -11,12 +11,14 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/GameStateBase.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "InputMappingContext.h"
 #include "Interface/ABGameInterface.h"
+#include "Net/UnrealNetwork.h"
 #include "Physics/ABCollision.h"
 #include "UI/ABHUDWidget.h"
-#include "Net/UnrealNetwork.h"
+#include "EngineUtils.h"
 
 AABCharacterPlayer::AABCharacterPlayer()
 {
@@ -241,7 +243,7 @@ void AABCharacterPlayer::QuaterMove(const FInputActionValue& Value)
 void AABCharacterPlayer::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	
+
 	DOREPLIFETIME(AABCharacterPlayer, bCanAttack);
 }
 
@@ -250,12 +252,30 @@ void AABCharacterPlayer::Attack()
 	// ProcessComboCommand();
 	if (bCanAttack)
 	{
-		ServerRPCAttack();
+		if (!HasAuthority())
+		{
+			bCanAttack = false;
+			GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None);
+
+			FTimerHandle Handle;
+			GetWorld()->GetTimerManager().SetTimer(Handle,
+				FTimerDelegate::CreateLambda(
+					[&]
+					{
+						bCanAttack = true;
+						GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
+					}),
+				AttackTime, false, -1.0f);
+			PlayAttackAnimation();
+		}
+
+		ServerRPCAttack(GetWorld()->GetGameState()->GetServerWorldTimeSeconds());
+
 		// 아래의 공격판정 로직은 서버에서 진행
-		//bCanAttack = false;
-		//GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None);
-		//FTimerHandle Handle;
-		//GetWorld()->GetTimerManager().SetTimer(Handle,
+		// bCanAttack = false;
+		// GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None);
+		// FTimerHandle Handle;
+		// GetWorld()->GetTimerManager().SetTimer(Handle,
 		//	FTimerDelegate::CreateLambda(
 		//		[&]
 		//		{
@@ -263,18 +283,27 @@ void AABCharacterPlayer::Attack()
 		//			GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
 		//		}),
 		//	AttackTime, false, -1.0f);
-		//UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-		//if (AnimInstance)
+		// UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+		// if (AnimInstance)
 		//{
 		//	AnimInstance->Montage_Play(ComboActionMontage);
 		//}
+	}
+}
 
+void AABCharacterPlayer::PlayAttackAnimation()
+{
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance)
+	{
+		AnimInstance->StopAllMontages(0.0f);
+		AnimInstance->Montage_Play(ComboActionMontage);
 	}
 }
 
 void AABCharacterPlayer::AttackHitCheck()
 {
-	if (HasAuthority())
+	if (IsLocallyControlled())	  // 소유권을 가진 Client에서 판정을 진행하도록 변경
 	{
 		AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
 		FHitResult OutHitResult;
@@ -283,65 +312,193 @@ void AABCharacterPlayer::AttackHitCheck()
 		const float AttackRange = Stat->GetTotalStat().AttackRange;
 		const float AttackRadius = Stat->GetAttackRadius();
 		const float AttackDamage = Stat->GetTotalStat().Attack;
+		const FVector Forward = GetActorForwardVector();
 		const FVector Start = GetActorLocation() + GetActorForwardVector() * GetCapsuleComponent()->GetScaledCapsuleRadius();
 		const FVector End = Start + GetActorForwardVector() * AttackRange;
 
 		bool HitDetected = GetWorld()->SweepSingleByChannel(
 			OutHitResult, Start, End, FQuat::Identity, CCHANNEL_ABACTION, FCollisionShape::MakeSphere(AttackRadius), Params);
-		if (HitDetected)
+
+		float HitCheckTime = GetWorld()->GetGameState()->GetServerWorldTimeSeconds();
+		if (HasAuthority())
 		{
-			FDamageEvent DamageEvent;
-			OutHitResult.GetActor()->TakeDamage(AttackDamage, DamageEvent, GetController(), this);
+			FColor DebugColor = HitDetected ? FColor::Green : FColor::Red;
+			DrawDebugAttackRange(DebugColor, Start, End, Forward);
+			if (HitDetected)
+			{
+				AttackHitConfirm(OutHitResult.GetActor());
+			}
 		}
-
-#if ENABLE_DRAW_DEBUG
-
-		FVector CapsuleOrigin = Start + (End - Start) * 0.5f;
-		float CapsuleHalfHeight = AttackRange * 0.5f;
-		FColor DrawColor = HitDetected ? FColor::Green : FColor::Red;
-
-		DrawDebugCapsule(GetWorld(), CapsuleOrigin, CapsuleHalfHeight, AttackRadius,
-			FRotationMatrix::MakeFromZ(GetActorForwardVector()).ToQuat(), DrawColor, false, 5.0f);
-#endif
+		else
+		{
+			if (HitDetected)
+			{
+				ServerRPCNotifyHit(OutHitResult, HitCheckTime);
+			}
+			else
+			{
+				ServerRPCNotifyMiss(Start, End, Forward, HitCheckTime);
+			}
+		}
 	}
-
 }
 
-bool AABCharacterPlayer::ServerRPCAttack_Validate()
-{
-	return true;
-}
-
-void AABCharacterPlayer::ServerRPCAttack_Implementation()
-{
-	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
-	MulticastRPCAttack();
-}
-
-void AABCharacterPlayer::MulticastRPCAttack_Implementation()
+void AABCharacterPlayer::AttackHitConfirm(AActor* HitActor)
 {
 	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
 	if (HasAuthority())
 	{
-		bCanAttack = false;
-		//C++에서Server에서는 property replicate 이벤트가 자동으로 호출되지않고 클라이언트에서만 호출되기때문에 서버에서 호출하려면 명시적으로 해주어야함
-		OnRep_CanAttack();
-		FTimerHandle Handle;
-		GetWorld()->GetTimerManager().SetTimer(Handle,
-			FTimerDelegate::CreateLambda(
-				[&]
-				{
-					bCanAttack = true;
-					OnRep_CanAttack();
-				}),
-			AttackTime, false, -1.0f);
+		const float AttackDamage = Stat->GetTotalStat().Attack;
+		FDamageEvent DamageEvent;
+		HitActor->TakeDamage(AttackDamage, DamageEvent, GetController(), this);
+	}
+}
+
+void AABCharacterPlayer::DrawDebugAttackRange(const FColor& DrawColor, FVector TraceStart, FVector TraceEnd, FVector Forward)
+{
+#if ENABLE_DRAW_DEBUG
+	float AttackRange = Stat->GetTotalStat().AttackRange;
+	float AttackRadius = Stat->GetAttackRadius();
+	FVector CapsuleOrigin = TraceStart + (TraceEnd - TraceStart) * 0.5f;
+	float CapsuleHalfHeight = AttackRange * 0.5f;
+	DrawDebugCapsule(GetWorld(), CapsuleOrigin, CapsuleHalfHeight, AttackRadius,
+		FRotationMatrix::MakeFromZ(GetActorForwardVector()).ToQuat(), DrawColor, false, 5.0f);
+#endif
+}
+
+void AABCharacterPlayer::ClientRPCPlayAnimaiton_Implementation(AABCharacterPlayer* CharacterToPlay)
+{
+	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
+	if (CharacterToPlay)
+	{
+		CharacterToPlay->PlayAttackAnimation();
+	}
+}
+
+bool AABCharacterPlayer::ServerRPCNotifyHit_Validate(const FHitResult& HitResult, float HitCheckTime)
+{
+	return (HitCheckTime - LastAttackStartTime) > AcceptMinCheckTime;
+}
+
+bool AABCharacterPlayer::ServerRPCNotifyMiss_Validate(
+	FVector_NetQuantize TraceStart, FVector_NetQuantize TraceEnd, FVector_NetQuantizeNormal TraceDir, float HitCheckTime)
+{
+
+	return (HitCheckTime - LastAttackStartTime) > AcceptMinCheckTime;
+}
+void AABCharacterPlayer::ServerRPCNotifyHit_Implementation(const FHitResult& HitResult, float HitCheckTime)
+{
+	AActor* HitActor = HitResult.GetActor();
+	if (IsValid(HitActor))
+	{
+		const FVector HitLocation = HitResult.Location;
+		const FBox HitBox = HitActor->GetComponentsBoundingBox();
+		const FVector ActorBoxCenter = (HitBox.Min + HitBox.Max) * 0.5f;
+		if (FVector::DistSquared(HitLocation, ActorBoxCenter) <= AcceptCheckDistance * AcceptCheckDistance)
+		{
+			AttackHitConfirm(HitActor);
+		}
+		else
+		{
+			AB_LOG(LogABNetwork, Warning, TEXT("%s"), TEXT("HitTest Rejected!!!!!!!!!!"));
+		}
+#if ENABLE_DRAW_DEBUG
+		DrawDebugPoint(GetWorld(), ActorBoxCenter, 50.0f, FColor::Cyan, false, 5.0f);
+		DrawDebugPoint(GetWorld(), HitLocation, 50.0f, FColor::Magenta, false, 5.0f);
+#endif
+		DrawDebugAttackRange(FColor::Green, HitResult.TraceStart, HitResult.TraceEnd, HitActor->GetActorForwardVector());
+	}
+}
+
+void AABCharacterPlayer::ServerRPCNotifyMiss_Implementation(
+	FVector_NetQuantize TraceStart, FVector_NetQuantize TraceEnd, FVector_NetQuantizeNormal TraceDir, float HitCheckTime)
+{
+	DrawDebugAttackRange(FColor::Red, TraceStart, TraceEnd, TraceDir);
+}
+
+bool AABCharacterPlayer::ServerRPCAttack_Validate(float AttackStartTime)
+{
+	if (LastAttackStartTime == 0.0f)
+	{
+		return true;
 	}
 
-	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-	if (AnimInstance)
+	return (AttackStartTime - LastAttackStartTime) > AttackTime;
+}
+
+void AABCharacterPlayer::ServerRPCAttack_Implementation(float AttackStartTime)
+{
+	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
+	bCanAttack = false;
+	OnRep_CanAttack();
+
+	AttackTimeDifference = GetWorld()->GetTimeSeconds() - AttackStartTime;
+	AB_LOG(LogABNetwork, Log, TEXT("Lag Time : %d"), AttackTimeDifference);
+	AttackTimeDifference = FMath::Clamp(AttackTimeDifference, 0.0f, AttackTime - 0.01f);
+
+	FTimerHandle Handle;
+	GetWorld()->GetTimerManager().SetTimer(Handle,
+		FTimerDelegate::CreateLambda(
+			[&]
+			{
+				bCanAttack = true;
+				OnRep_CanAttack();
+			}),
+		AttackTime - AttackTimeDifference, false, -1.0f);
+	LastAttackStartTime = AttackTime;
+	PlayAttackAnimation();
+	//MulticastRPCAttack();
+	for (APlayerController* PlayerController : TActorRange<APlayerController>(GetWorld()))
 	{
-		AnimInstance->Montage_Play(ComboActionMontage);
+		if (!PlayerController)
+		{
+			continue;
+		}
+		if (GetController() != PlayerController) // 현재 logic수행중인 controller는 제외
+		{
+			if (!PlayerController->IsLocalController()) //Client일때만
+			{
+				AABCharacterPlayer* OtherPlayer = Cast<AABCharacterPlayer>(PlayerController->GetPawn());
+				if (OtherPlayer)
+				{
+					OtherPlayer->ClientRPCPlayAnimaiton(this);
+				}
+			}
+		}
 	}
+
+}
+
+void AABCharacterPlayer::MulticastRPCAttack_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		PlayAttackAnimation();
+	}
+
+	// AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
+	// if (HasAuthority())
+	//{
+	//	bCanAttack = false;
+	//	// C++에서Server에서는 property replicate 이벤트가 자동으로 호출되지않고 클라이언트에서만 호출되기때문에 서버에서 호출하려면
+	//	// 명시적으로 해주어야함
+	//	OnRep_CanAttack();
+	//	FTimerHandle Handle;
+	//	GetWorld()->GetTimerManager().SetTimer(Handle,
+	//		FTimerDelegate::CreateLambda(
+	//			[&]
+	//			{
+	//				bCanAttack = true;
+	//				OnRep_CanAttack();
+	//			}),
+	//		AttackTime, false, -1.0f);
+	// }
+
+	// UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	// if (AnimInstance)
+	//{
+	//	AnimInstance->Montage_Play(ComboActionMontage);
+	// }
 }
 
 void AABCharacterPlayer::OnRep_CanAttack()
