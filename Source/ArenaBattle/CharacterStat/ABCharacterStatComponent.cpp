@@ -1,9 +1,10 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "CharacterStat/ABCharacterStatComponent.h"
-#include "GameData/ABGameSingleton.h"
 
+#include "ArenaBattle.h"
+#include "GameData/ABGameSingleton.h"
+#include "Net/UnrealNetwork.h"
 // Sets default values for this component's properties
 UABCharacterStatComponent::UABCharacterStatComponent()
 {
@@ -11,6 +12,9 @@ UABCharacterStatComponent::UABCharacterStatComponent()
 	AttackRadius = 50.0f;
 
 	bWantsInitializeComponent = true;
+
+	// Actor Component에서만 제공하는 Replicated설정값
+	SetIsReplicated(true);
 }
 
 void UABCharacterStatComponent::InitializeComponent()
@@ -45,7 +49,35 @@ float UABCharacterStatComponent::ApplyDamage(float InDamage)
 void UABCharacterStatComponent::SetHp(float NewHp)
 {
 	CurrentHp = FMath::Clamp<float>(NewHp, 0.0f, BaseStat.MaxHp);
-	
+
 	OnHpChanged.Broadcast(CurrentHp);
 }
 
+void UABCharacterStatComponent::BeginPlay()
+{
+	AB_SUBLOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
+	Super::BeginPlay();
+}
+
+void UABCharacterStatComponent::ReadyForReplication()
+{
+	AB_SUBLOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
+	Super::ReadyForReplication();
+}
+
+void UABCharacterStatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(UABCharacterStatComponent, CurrentHp);	// Replication할 설정
+}
+
+void UABCharacterStatComponent::OnRep_CurrentHp()
+{
+	AB_SUBLOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
+	OnHpChanged.Broadcast(CurrentHp);
+	if (CurrentHp < KINDA_SMALL_NUMBER)
+	{
+		OnHpZero.Broadcast();
+	}
+}

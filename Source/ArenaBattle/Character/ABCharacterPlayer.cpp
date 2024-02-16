@@ -6,12 +6,17 @@
 #include "ArenaBattle.h"
 #include "Camera/CameraComponent.h"
 #include "CharacterStat/ABCharacterStatComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Engine/DamageEvents.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "InputMappingContext.h"
 #include "Interface/ABGameInterface.h"
+#include "Physics/ABCollision.h"
 #include "UI/ABHUDWidget.h"
+#include "Net/UnrealNetwork.h"
 
 AABCharacterPlayer::AABCharacterPlayer()
 {
@@ -69,10 +74,13 @@ AABCharacterPlayer::AABCharacterPlayer()
 	}
 
 	CurrentCharacterControlType = ECharacterControlType::Quater;
+	bCanAttack = true;
 }
 
 void AABCharacterPlayer::BeginPlay()
 {
+	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
+
 	Super::BeginPlay();
 
 	APlayerController* PlayerController = Cast<APlayerController>(GetController());
@@ -230,9 +238,122 @@ void AABCharacterPlayer::QuaterMove(const FInputActionValue& Value)
 	AddMovementInput(MoveDirection, MovementVectorSize);
 }
 
+void AABCharacterPlayer::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	
+	DOREPLIFETIME(AABCharacterPlayer, bCanAttack);
+}
+
 void AABCharacterPlayer::Attack()
 {
-	ProcessComboCommand();
+	// ProcessComboCommand();
+	if (bCanAttack)
+	{
+		ServerRPCAttack();
+		// 아래의 공격판정 로직은 서버에서 진행
+		//bCanAttack = false;
+		//GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None);
+		//FTimerHandle Handle;
+		//GetWorld()->GetTimerManager().SetTimer(Handle,
+		//	FTimerDelegate::CreateLambda(
+		//		[&]
+		//		{
+		//			bCanAttack = true;
+		//			GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
+		//		}),
+		//	AttackTime, false, -1.0f);
+		//UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+		//if (AnimInstance)
+		//{
+		//	AnimInstance->Montage_Play(ComboActionMontage);
+		//}
+
+	}
+}
+
+void AABCharacterPlayer::AttackHitCheck()
+{
+	if (HasAuthority())
+	{
+		AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
+		FHitResult OutHitResult;
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(Attack), false, this);
+
+		const float AttackRange = Stat->GetTotalStat().AttackRange;
+		const float AttackRadius = Stat->GetAttackRadius();
+		const float AttackDamage = Stat->GetTotalStat().Attack;
+		const FVector Start = GetActorLocation() + GetActorForwardVector() * GetCapsuleComponent()->GetScaledCapsuleRadius();
+		const FVector End = Start + GetActorForwardVector() * AttackRange;
+
+		bool HitDetected = GetWorld()->SweepSingleByChannel(
+			OutHitResult, Start, End, FQuat::Identity, CCHANNEL_ABACTION, FCollisionShape::MakeSphere(AttackRadius), Params);
+		if (HitDetected)
+		{
+			FDamageEvent DamageEvent;
+			OutHitResult.GetActor()->TakeDamage(AttackDamage, DamageEvent, GetController(), this);
+		}
+
+#if ENABLE_DRAW_DEBUG
+
+		FVector CapsuleOrigin = Start + (End - Start) * 0.5f;
+		float CapsuleHalfHeight = AttackRange * 0.5f;
+		FColor DrawColor = HitDetected ? FColor::Green : FColor::Red;
+
+		DrawDebugCapsule(GetWorld(), CapsuleOrigin, CapsuleHalfHeight, AttackRadius,
+			FRotationMatrix::MakeFromZ(GetActorForwardVector()).ToQuat(), DrawColor, false, 5.0f);
+#endif
+	}
+
+}
+
+bool AABCharacterPlayer::ServerRPCAttack_Validate()
+{
+	return true;
+}
+
+void AABCharacterPlayer::ServerRPCAttack_Implementation()
+{
+	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
+	MulticastRPCAttack();
+}
+
+void AABCharacterPlayer::MulticastRPCAttack_Implementation()
+{
+	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
+	if (HasAuthority())
+	{
+		bCanAttack = false;
+		//C++에서Server에서는 property replicate 이벤트가 자동으로 호출되지않고 클라이언트에서만 호출되기때문에 서버에서 호출하려면 명시적으로 해주어야함
+		OnRep_CanAttack();
+		FTimerHandle Handle;
+		GetWorld()->GetTimerManager().SetTimer(Handle,
+			FTimerDelegate::CreateLambda(
+				[&]
+				{
+					bCanAttack = true;
+					OnRep_CanAttack();
+				}),
+			AttackTime, false, -1.0f);
+	}
+
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance)
+	{
+		AnimInstance->Montage_Play(ComboActionMontage);
+	}
+}
+
+void AABCharacterPlayer::OnRep_CanAttack()
+{
+	if (bCanAttack)
+	{
+		GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
+	}
+	else
+	{
+		GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None);
+	}
 }
 
 void AABCharacterPlayer::PrintOwnerName()

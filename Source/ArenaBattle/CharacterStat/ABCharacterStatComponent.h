@@ -45,8 +45,13 @@ public:
 protected:
 	void SetHp(float NewHp);
 
-	UPROPERTY(Transient, VisibleInstanceOnly, Category = Stat)
+	//Network Version
+	UPROPERTY(ReplicatedUsing = OnRep_CurrentHp, Transient, VisibleInstanceOnly, Category = Stat)
 	float CurrentHp;
+
+	//LocalPlay Version
+	//UPROPERTY(Transient, VisibleInstanceOnly, Category = Stat)
+	//float CurrentHp;
 
 	UPROPERTY(Transient, VisibleInstanceOnly, Category = Stat)
 	float CurrentLevel;
@@ -59,4 +64,14 @@ protected:
 
 	UPROPERTY(Transient, VisibleInstanceOnly, Category = Stat, Meta = (AllowPrivateAccess = "true"))
 	FABCharacterStat ModifierStat;
+
+protected:
+	virtual void BeginPlay() override;
+	virtual void ReadyForReplication() override;
+	virtual void  GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	UFUNCTION()
+	void OnRep_CurrentHp();
+	
+
 };

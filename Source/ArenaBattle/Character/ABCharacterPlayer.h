@@ -70,9 +70,25 @@ protected:
 
 	ECharacterControlType CurrentCharacterControlType;
 
+protected:
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	void Attack();
+	virtual void AttackHitCheck() override;
 
-// UI Section
+	UFUNCTION(Server, Reliable, withValidation)
+	void ServerRPCAttack();//16:20
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastRPCAttack();
+	
+	UPROPERTY(ReplicatedUsing = OnRep_CanAttack)
+	uint8 bCanAttack : 1;
+	float AttackTime = 1.4667f;
+
+	UFUNCTION()
+	void OnRep_CanAttack();
+
+	// UI Section
 protected:
 	void PrintOwnerName();
 	void PrintOwnerName(const FString& InFunctionName);
