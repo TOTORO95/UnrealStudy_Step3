@@ -17,7 +17,7 @@ class ARENABATTLE_API AABCharacterPlayer : public AABCharacterBase, public IABCh
 	GENERATED_BODY()
 	
 public:
-	AABCharacterPlayer();
+	AABCharacterPlayer(const FObjectInitializer& ObjectInitializer);
 
 protected:
 	virtual void BeginPlay() override;
@@ -63,6 +63,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, Meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UInputAction> AttackAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, Meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<class UInputAction> TeleportAction;
+
+
 	void ShoulderMove(const FInputActionValue& Value);
 	void ShoulderLook(const FInputActionValue& Value);
 
@@ -107,9 +111,15 @@ protected:
 	float AcceptCheckDistance = 300.0f;
 	float AcceptMinCheckTime = 0.15f;
 
+	// Teleport Section
+protected:
+	void Teleport();
+
 	// UI Section
 protected:
 	void PrintOwnerName();
 	void PrintOwnerName(const FString& InFunctionName);
 	virtual void SetupHUDWidget(class UABHUDWidget* InHUDWidget) override;
+
+
 };

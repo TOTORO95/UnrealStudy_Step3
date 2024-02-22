@@ -1,23 +1,23 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "Character/ABCharacterBase.h"
-#include "Components/CapsuleComponent.h"
-#include "GameFramework/CharacterMovementComponent.h"
+
 #include "ABCharacterControlData.h"
-#include "Animation/AnimMontage.h"
 #include "ABComboActionData.h"
-#include "Physics/ABCollision.h"
-#include "Engine/DamageEvents.h"
+#include "Animation/AnimMontage.h"
 #include "CharacterStat/ABCharacterStatComponent.h"
-#include "UI/ABWidgetComponent.h"
-#include "UI/ABHpBarWidget.h"
+#include "Components/CapsuleComponent.h"
+#include "Engine/DamageEvents.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Item/ABItems.h"
+#include "Physics/ABCollision.h"
+#include "UI/ABHpBarWidget.h"
+#include "UI/ABWidgetComponent.h"
 
 DEFINE_LOG_CATEGORY(LogABCharacter);
 
 // Sets default values
-AABCharacterBase::AABCharacterBase()
+AABCharacterBase::AABCharacterBase(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	// Pawn
 	bUseControllerRotationPitch = false;
@@ -42,52 +42,60 @@ AABCharacterBase::AABCharacterBase()
 	GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 	GetMesh()->SetCollisionProfileName(TEXT("NoCollision"));
 
-	static ConstructorHelpers::FObjectFinder<USkeletalMesh> CharacterMeshRef(TEXT("/Script/Engine.SkeletalMesh'/Game/InfinityBladeWarriors/Character/CompleteCharacters/SK_CharM_Cardboard.SK_CharM_Cardboard'"));
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> CharacterMeshRef(
+		TEXT("/Script/Engine.SkeletalMesh'/Game/InfinityBladeWarriors/Character/CompleteCharacters/"
+			 "SK_CharM_Cardboard.SK_CharM_Cardboard'"));
 	if (CharacterMeshRef.Object)
 	{
 		GetMesh()->SetSkeletalMesh(CharacterMeshRef.Object);
 	}
 
-	static ConstructorHelpers::FClassFinder<UAnimInstance> AnimInstanceClassRef(TEXT("/Game/ArenaBattle/Animation/ABP_ABCharacter.ABP_ABCharacter_C"));
+	static ConstructorHelpers::FClassFinder<UAnimInstance> AnimInstanceClassRef(
+		TEXT("/Game/ArenaBattle/Animation/ABP_ABCharacter.ABP_ABCharacter_C"));
 	if (AnimInstanceClassRef.Class)
 	{
 		GetMesh()->SetAnimInstanceClass(AnimInstanceClassRef.Class);
 	}
 
-	static ConstructorHelpers::FObjectFinder<UABCharacterControlData> ShoulderDataRef(TEXT("/Script/ArenaBattle.ABCharacterControlData'/Game/ArenaBattle/CharacterControl/ABC_Shoulder.ABC_Shoulder'"));
+	static ConstructorHelpers::FObjectFinder<UABCharacterControlData> ShoulderDataRef(
+		TEXT("/Script/ArenaBattle.ABCharacterControlData'/Game/ArenaBattle/CharacterControl/ABC_Shoulder.ABC_Shoulder'"));
 	if (ShoulderDataRef.Object)
 	{
 		CharacterControlManager.Add(ECharacterControlType::Shoulder, ShoulderDataRef.Object);
 	}
 
-	static ConstructorHelpers::FObjectFinder<UABCharacterControlData> QuaterDataRef(TEXT("/Script/ArenaBattle.ABCharacterControlData'/Game/ArenaBattle/CharacterControl/ABC_Quater.ABC_Quater'"));
+	static ConstructorHelpers::FObjectFinder<UABCharacterControlData> QuaterDataRef(
+		TEXT("/Script/ArenaBattle.ABCharacterControlData'/Game/ArenaBattle/CharacterControl/ABC_Quater.ABC_Quater'"));
 	if (QuaterDataRef.Object)
 	{
 		CharacterControlManager.Add(ECharacterControlType::Quater, QuaterDataRef.Object);
 	}
 
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> ComboActionMontageRef(TEXT("/Script/Engine.AnimMontage'/Game/ArenaBattle/Animation/AM_ComboAttack.AM_ComboAttack'"));
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> ComboActionMontageRef(
+		TEXT("/Script/Engine.AnimMontage'/Game/ArenaBattle/Animation/AM_ComboAttack.AM_ComboAttack'"));
 	if (ComboActionMontageRef.Object)
 	{
 		ComboActionMontage = ComboActionMontageRef.Object;
 	}
 
-	static ConstructorHelpers::FObjectFinder<UABComboActionData> ComboActionDataRef(TEXT("/Script/ArenaBattle.ABComboActionData'/Game/ArenaBattle/CharacterAction/ABA_ComboAttack.ABA_ComboAttack'"));
+	static ConstructorHelpers::FObjectFinder<UABComboActionData> ComboActionDataRef(
+		TEXT("/Script/ArenaBattle.ABComboActionData'/Game/ArenaBattle/CharacterAction/ABA_ComboAttack.ABA_ComboAttack'"));
 	if (ComboActionDataRef.Object)
 	{
 		ComboActionData = ComboActionDataRef.Object;
 	}
 
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> DeadMontageRef(TEXT("/Script/Engine.AnimMontage'/Game/ArenaBattle/Animation/AM_Dead.AM_Dead'"));
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> DeadMontageRef(
+		TEXT("/Script/Engine.AnimMontage'/Game/ArenaBattle/Animation/AM_Dead.AM_Dead'"));
 	if (DeadMontageRef.Object)
 	{
 		DeadMontage = DeadMontageRef.Object;
 	}
 
-	// Stat Component 
+	// Stat Component
 	Stat = CreateDefaultSubobject<UABCharacterStatComponent>(TEXT("Stat"));
 
-	// Widget Component 
+	// Widget Component
 	HpBar = CreateDefaultSubobject<UABWidgetComponent>(TEXT("Widget"));
 	HpBar->SetupAttachment(GetMesh());
 	HpBar->SetRelativeLocation(FVector(0.0f, 0.0f, 180.0f));
@@ -220,7 +228,8 @@ void AABCharacterBase::AttackHitCheck()
 	const FVector Start = GetActorLocation() + GetActorForwardVector() * GetCapsuleComponent()->GetScaledCapsuleRadius();
 	const FVector End = Start + GetActorForwardVector() * AttackRange;
 
-	bool HitDetected = GetWorld()->SweepSingleByChannel(OutHitResult, Start, End, FQuat::Identity, CCHANNEL_ABACTION, FCollisionShape::MakeSphere(AttackRadius), Params);
+	bool HitDetected = GetWorld()->SweepSingleByChannel(
+		OutHitResult, Start, End, FQuat::Identity, CCHANNEL_ABACTION, FCollisionShape::MakeSphere(AttackRadius), Params);
 	if (HitDetected)
 	{
 		FDamageEvent DamageEvent;
@@ -233,12 +242,14 @@ void AABCharacterBase::AttackHitCheck()
 	float CapsuleHalfHeight = AttackRange * 0.5f;
 	FColor DrawColor = HitDetected ? FColor::Green : FColor::Red;
 
-	DrawDebugCapsule(GetWorld(), CapsuleOrigin, CapsuleHalfHeight, AttackRadius, FRotationMatrix::MakeFromZ(GetActorForwardVector()).ToQuat(), DrawColor, false, 5.0f);
+	DrawDebugCapsule(GetWorld(), CapsuleOrigin, CapsuleHalfHeight, AttackRadius,
+		FRotationMatrix::MakeFromZ(GetActorForwardVector()).ToQuat(), DrawColor, false, 5.0f);
 
 #endif
 }
 
-float AABCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+float AABCharacterBase::TakeDamage(
+	float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
 	Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 
@@ -278,7 +289,7 @@ void AABCharacterBase::TakeItem(UABItemData* InItemData)
 {
 	if (InItemData)
 	{
-		TakeItemActions[(uint8)InItemData->Type].ItemDelegate.ExecuteIfBound(InItemData);
+		TakeItemActions[(uint8) InItemData->Type].ItemDelegate.ExecuteIfBound(InItemData);
 	}
 }
 

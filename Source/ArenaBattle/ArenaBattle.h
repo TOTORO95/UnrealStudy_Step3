@@ -25,3 +25,4 @@
 		*FString::Printf(Format, ##__VA_ARGS__))
 
 DECLARE_LOG_CATEGORY_EXTERN(LogABNetwork, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogABTeleport, Log, All);

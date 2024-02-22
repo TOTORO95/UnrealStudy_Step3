@@ -6,7 +6,7 @@
 #include "AI/ABAIController.h"
 #include "CharacterStat/ABCharacterStatComponent.h"
 
-AABCharacterNonPlayer::AABCharacterNonPlayer()
+AABCharacterNonPlayer::AABCharacterNonPlayer(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	GetMesh()->SetHiddenInGame(true);
 
