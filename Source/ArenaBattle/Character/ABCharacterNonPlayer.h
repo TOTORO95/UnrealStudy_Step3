@@ -24,7 +24,7 @@ protected:
 
 protected:
 	void SetDead() override;
-	void NPCMeshLoadCompleted();
+	//void MeshLoadCompleted();
 
 	UPROPERTY(config)
 	TArray<FSoftObjectPath> NPCMeshes;

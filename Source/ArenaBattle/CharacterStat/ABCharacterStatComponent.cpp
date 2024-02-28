@@ -14,7 +14,7 @@ UABCharacterStatComponent::UABCharacterStatComponent()
 	bWantsInitializeComponent = true;
 
 	// Actor Component에서만 제공하는 Replicated설정값
-	SetIsReplicated(true);
+	//SetIsReplicated(true);
 }
 
 void UABCharacterStatComponent::InitializeComponent()
@@ -22,9 +22,11 @@ void UABCharacterStatComponent::InitializeComponent()
 	Super::InitializeComponent();
 
 	SetLevelStat(CurrentLevel);
-	MaxHp = BaseStat.MaxHp;
-	SetHp(MaxHp);
+	ResetStat();
+	//MaxHp = BaseStat.MaxHp;
+	//SetHp(MaxHp);
 	OnStatChanged.AddUObject(this, &UABCharacterStatComponent::SetNewMaxHP); //OnStatChanged가 발동할때 SetNewMaxHp 바인드해서 실행
+	SetIsReplicated(true);
 }
 
 void UABCharacterStatComponent::SetLevelStat(int32 InNewLevel)
@@ -113,4 +115,11 @@ void UABCharacterStatComponent::OnRep_ModifierStat()
 {
 	AB_SUBLOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
 	OnStatChanged.Broadcast(BaseStat, ModifierStat);
+}
+
+void UABCharacterStatComponent::ResetStat()
+{
+	SetLevelStat(CurrentLevel);
+	MaxHp = BaseStat.MaxHp;
+	SetHp(MaxHp);
 }
