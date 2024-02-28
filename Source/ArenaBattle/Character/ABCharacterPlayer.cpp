@@ -3,23 +3,25 @@
 #include "Character/ABCharacterPlayer.h"
 
 #include "ABCharacterControlData.h"
+#include "ABCharacterMovementComponent.h"
 #include "ArenaBattle.h"
 #include "Camera/CameraComponent.h"
 #include "CharacterStat/ABCharacterStatComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Engine/AssetManager.h"
 #include "Engine/DamageEvents.h"
+#include "EngineUtils.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/GameStateBase.h"
+#include "GameFramework/PlayerState.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "InputMappingContext.h"
 #include "Interface/ABGameInterface.h"
 #include "Net/UnrealNetwork.h"
 #include "Physics/ABCollision.h"
 #include "UI/ABHUDWidget.h"
-#include "EngineUtils.h"
-#include "ABCharacterMovementComponent.h"
 
 AABCharacterPlayer::AABCharacterPlayer(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer.SetDefaultSubobjectClass<UABCharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
@@ -107,11 +109,12 @@ void AABCharacterPlayer::SetDead()
 {
 	Super::SetDead();
 
-	APlayerController* PlayerController = Cast<APlayerController>(GetController());
-	if (PlayerController)
-	{
-		DisableInput(PlayerController);
-	}
+	GetWorldTimerManager().SetTimer(DeadTimerHandle, this, &AABCharacterPlayer::ResetPlayer, 5.0f, false);
+	// APlayerController* PlayerController = Cast<APlayerController>(GetController());
+	// if (PlayerController)
+	//{
+	//	DisableInput(PlayerController);
+	// }
 }
 
 void AABCharacterPlayer::PossessedBy(AController* NewController)
@@ -119,6 +122,8 @@ void AABCharacterPlayer::PossessedBy(AController* NewController)
 	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("Begin"));
 	PrintOwnerName(LOG_CALLINFO);
 	Super::PossessedBy(NewController);
+	UpdateMeshFromPlayerState();
+
 	PrintOwnerName(LOG_CALLINFO);
 	AB_LOG(LogABNetwork, Log, TEXT("%s"), TEXT("End"));
 }
@@ -276,15 +281,7 @@ void AABCharacterPlayer::Attack()
 			bCanAttack = false;
 			GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None);
 
-			FTimerHandle Handle;
-			GetWorld()->GetTimerManager().SetTimer(Handle,
-				FTimerDelegate::CreateLambda(
-					[&]
-					{
-						bCanAttack = true;
-						GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
-					}),
-				AttackTime, false, -1.0f);
+			GetWorldTimerManager().SetTimer(AttackTimerHandle, this, &AABCharacterPlayer::ResetAttack, AttackTime, false);
 			PlayAttackAnimation();
 		}
 
@@ -402,7 +399,6 @@ bool AABCharacterPlayer::ServerRPCNotifyHit_Validate(const FHitResult& HitResult
 bool AABCharacterPlayer::ServerRPCNotifyMiss_Validate(
 	FVector_NetQuantize TraceStart, FVector_NetQuantize TraceEnd, FVector_NetQuantizeNormal TraceDir, float HitCheckTime)
 {
-
 	return (HitCheckTime - LastAttackStartTime) > AcceptMinCheckTime;
 }
 void AABCharacterPlayer::ServerRPCNotifyHit_Implementation(const FHitResult& HitResult, float HitCheckTime)
@@ -442,7 +438,7 @@ bool AABCharacterPlayer::ServerRPCAttack_Validate(float AttackStartTime)
 		return true;
 	}
 
-	return (AttackStartTime - LastAttackStartTime) > AttackTime;
+	return (AttackStartTime - LastAttackStartTime) > (AttackTime - 0.4f);
 }
 
 void AABCharacterPlayer::ServerRPCAttack_Implementation(float AttackStartTime)
@@ -455,27 +451,21 @@ void AABCharacterPlayer::ServerRPCAttack_Implementation(float AttackStartTime)
 	AB_LOG(LogABNetwork, Log, TEXT("Lag Time : %d"), AttackTimeDifference);
 	AttackTimeDifference = FMath::Clamp(AttackTimeDifference, 0.0f, AttackTime - 0.01f);
 
-	FTimerHandle Handle;
-	GetWorld()->GetTimerManager().SetTimer(Handle,
-		FTimerDelegate::CreateLambda(
-			[&]
-			{
-				bCanAttack = true;
-				OnRep_CanAttack();
-			}),
-		AttackTime - AttackTimeDifference, false, -1.0f);
+	GetWorldTimerManager().SetTimer(
+		AttackTimerHandle, this, &AABCharacterPlayer::ResetAttack, AttackTime - AttackTimeDifference, false);
+
 	LastAttackStartTime = AttackTime;
 	PlayAttackAnimation();
-	//MulticastRPCAttack();
+	// MulticastRPCAttack();
 	for (APlayerController* PlayerController : TActorRange<APlayerController>(GetWorld()))
 	{
 		if (!PlayerController)
 		{
 			continue;
 		}
-		if (GetController() != PlayerController) // 현재 logic수행중인 controller는 제외
+		if (GetController() != PlayerController)	// 현재 logic수행중인 controller는 제외
 		{
-			if (!PlayerController->IsLocalController()) //Client일때만
+			if (!PlayerController->IsLocalController())	   // Client일때만
 			{
 				AABCharacterPlayer* OtherPlayer = Cast<AABCharacterPlayer>(PlayerController->GetPawn());
 				if (OtherPlayer)
@@ -485,7 +475,6 @@ void AABCharacterPlayer::ServerRPCAttack_Implementation(float AttackStartTime)
 			}
 		}
 	}
-
 }
 
 void AABCharacterPlayer::MulticastRPCAttack_Implementation()
@@ -575,8 +564,68 @@ void AABCharacterPlayer::SetupHUDWidget(UABHUDWidget* InHUDWidget)
 		InHUDWidget->UpdateStat(Stat->GetBaseStat(), Stat->GetModifierStat());
 		InHUDWidget->UpdateHpBar(Stat->GetCurrentHp(), Stat->GetMaxHp());
 
-
 		Stat->OnStatChanged.AddUObject(InHUDWidget, &UABHUDWidget::UpdateStat);
 		Stat->OnHpChanged.AddUObject(InHUDWidget, &UABHUDWidget::UpdateHpBar);
 	}
+}
+
+void AABCharacterPlayer::ResetPlayer()
+{
+	UAnimInstance* AnimInstnace = GetMesh()->GetAnimInstance();
+	if (AnimInstnace)
+	{
+		AnimInstnace->StopAllMontages(0.0f);
+	}
+	Stat->SetLevelStat(1);
+	Stat->ResetStat();
+	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
+	SetActorEnableCollision(true);
+	// HpBar->SetHiddenInGame(false);
+	if (HasAuthority())
+	{
+		IABGameInterface* ABGameMode = GetWorld()->GetAuthGameMode<IABGameInterface>();
+		if (ABGameMode)
+		{
+			FTransform NewTransform = ABGameMode->GetRandomStartTransform();
+			TeleportTo(NewTransform.GetLocation(), NewTransform.GetRotation().Rotator());
+		}
+	}
+}
+
+void AABCharacterPlayer::ResetAttack()
+{
+	bCanAttack = true;
+	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
+}
+
+float AABCharacterPlayer::TakeDamage(
+	float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+{
+	const float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
+	if (Stat->GetCurrentHp() <= 0.0f)
+	{
+		IABGameInterface* ABGameMode = GetWorld()->GetAuthGameMode<IABGameInterface>();
+		if (ABGameMode)
+		{
+			ABGameMode->OnPlayerKilled(EventInstigator, GetController(), this);
+		}
+		return 0.0f;
+	}
+
+	return ActualDamage;
+}
+
+void AABCharacterPlayer::UpdateMeshFromPlayerState()
+{
+	int32 MeshIndex = FMath::Clamp(GetPlayerState()->PlayerId % PlayerMeshes.Num(), 0, PlayerMeshes.Num() - 1);
+	MeshHandle = UAssetManager::Get().GetStreamableManager().RequestAsyncLoad(
+		PlayerMeshes[MeshIndex], FStreamableDelegate::CreateUObject(this, &AABCharacterBase::MeshLoadCompleted));
+}
+
+void AABCharacterPlayer::OnRep_PlayerState()
+{
+	Super::OnRep_PlayerState();
+
+	UpdateMeshFromPlayerState();
 }
